@@ -10,6 +10,7 @@
 #![deny(unsafe_op_in_unsafe_fn)]
 #![allow(
     clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
     clippy::items_after_statements,
     clippy::must_use_candidate,
     clippy::too_many_lines,
