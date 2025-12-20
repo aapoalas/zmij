@@ -761,7 +761,7 @@ unsafe fn write_significand(mut buffer: *mut u8, value: u64) -> *mut u8 {
 
     unsafe {
         buffer.write(b'0' + a as u8);
-        buffer = buffer.add((a != 0) as usize);
+        buffer = buffer.add(usize::from(a != 0));
     }
 
     // Use an intermediate u64 to make sure that the compiler constructs the
