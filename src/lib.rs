@@ -21,7 +21,6 @@
 mod tests;
 
 use core::mem::{self, MaybeUninit};
-use core::ptr;
 use core::slice;
 use core::str;
 
@@ -713,7 +712,7 @@ fn count_trailing_nonzeros(x: u64) -> usize {
 
 // Converts value in the range [0, 100) to a string. GCC generates a bit better
 // code when value is pointer-size (https://www.godbolt.org/z/5fEPMT1cc).
-unsafe fn digits2(value: usize) -> *const u8 {
+unsafe fn digits2(value: usize) -> &'static u16 {
     // Align data since unaligned access may be slower when crossing a
     // hardware-specific boundary.
     #[repr(align(2))]
@@ -728,15 +727,16 @@ unsafe fn digits2(value: usize) -> *const u8 {
     );
 
     debug_assert!(value < 100);
-    unsafe { DATA.0.as_ptr().add(value * 2) }
+
+    #[allow(clippy::cast_ptr_alignment)]
+    unsafe {
+        &*DATA.0.as_ptr().cast::<u16>().add(value)
+    }
 }
 
 unsafe fn digits2_u64(value: u32) -> u64 {
-    unsafe {
-        #[allow(clippy::cast_ptr_alignment)]
-        let digits = digits2(value as usize).cast::<u16>();
-        u64::from(digits.read())
-    }
+    let digits = unsafe { digits2(value as usize) };
+    u64::from(*digits)
 }
 
 // Converts the value `aa * 10**6 + bb * 10**4 + cc * 10**2 + dd` to a string
@@ -817,7 +817,7 @@ unsafe fn write(mut buffer: *mut u8, dec_sig: u64, mut dec_exp: i32) -> *mut u8 
     unsafe {
         buffer.write(b'0' + a as u8);
         buffer = buffer.add(usize::from(dec_exp >= 100));
-        ptr::copy_nonoverlapping(digits2(bb as usize), buffer, 2);
+        buffer.cast::<u16>().write_unaligned(*digits2(bb as usize));
         buffer.add(2)
     }
 }
