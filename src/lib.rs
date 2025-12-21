@@ -974,31 +974,30 @@ unsafe fn dtoa(value: f64, mut buffer: *mut u8) -> *mut u8 {
     let end = unsafe { write_significand(buffer.add(1), dec_sig) };
     let length = unsafe { end.offset_from_unsigned(buffer.add(1)) };
 
-    let kk = dec_exp + 1;
-    if length as i32 <= kk && kk <= 16 {
+    if length as i32 - 1 <= dec_exp && dec_exp <= 15 {
         // 1234e7 -> 12340000000.0
         unsafe {
             ptr::copy(buffer.add(1), buffer, length);
-            ptr::write_bytes(buffer.add(length), b'0', kk as usize - length);
-            *buffer.add(kk as usize) = b'.';
-            *buffer.add(kk as usize + 1) = b'0';
-            return buffer.add(kk as usize + 2);
+            ptr::write_bytes(buffer.add(length), b'0', dec_exp as usize + 1 - length);
+            *buffer.add(dec_exp as usize + 1) = b'.';
+            *buffer.add(dec_exp as usize + 2) = b'0';
+            return buffer.add(dec_exp as usize + 3);
         }
-    } else if 0 < kk && kk <= 16 {
+    } else if 0 <= dec_exp && dec_exp <= 15 {
         // 1234e-2 -> 12.34
         unsafe {
-            ptr::copy(buffer.add(1), buffer, kk as usize);
-            *buffer.add(kk as usize) = b'.';
+            ptr::copy(buffer.add(1), buffer, dec_exp as usize + 1);
+            *buffer.add(dec_exp as usize + 1) = b'.';
             return buffer.add(length + 1);
         }
-    } else if -5 < kk && kk <= 0 {
+    } else if -5 <= dec_exp && dec_exp <= -1 {
         // 1234e-6 -> 0.001234
         unsafe {
-            ptr::copy(buffer.add(1), buffer.add((2 - kk) as usize), length);
+            ptr::copy(buffer.add(1), buffer.add((1 - dec_exp) as usize), length);
             *buffer = b'0';
             *buffer.add(1) = b'.';
-            ptr::write_bytes(buffer.add(2), b'0', -kk as usize);
-            return buffer.add((2 - kk) as usize + length);
+            ptr::write_bytes(buffer.add(2), b'0', (-1 - dec_exp) as usize);
+            return buffer.add((1 - dec_exp) as usize + length);
         }
     } else if length == 1 {
         // 1e30
