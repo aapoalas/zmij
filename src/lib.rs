@@ -904,21 +904,26 @@ unsafe fn dtoa(value: f64, mut buffer: *mut u8) -> *mut u8 {
         const TEN: u64 = 10 << NUM_FRACTIONAL_BITS;
         // Fixed-point remainder of the scaled significand modulo 10.
         let rem10 = (digit << NUM_FRACTIONAL_BITS) | (fractional >> NUM_INTEGRAL_BITS);
-        // dec_exp is chosen such that 10**dec_exp <= 2**bin_exp < 10**(dec_exp + 1)
-        // Since 1ulp = 2**bin_exp it will be in the range [1, 10) after scaling
+        // dec_exp is chosen so that 10**dec_exp <= 2**bin_exp < 10**(dec_exp + 1).
+        // Since 1ulp == 2**bin_exp it will be in the range [1, 10) after scaling
         // by 10**dec_exp. Add 1 to combine the shift with division by two.
-        let half_ulp = pow10_hi >> (NUM_INTEGRAL_BITS - exp_shift + 1);
-        let upper = rem10 + half_ulp;
+        let half_ulp10 = pow10_hi >> (NUM_INTEGRAL_BITS - exp_shift + 1);
+        let upper = rem10 + half_ulp10;
 
         // An optimization from yy by Yaoyuan Guo:
-        if fractional != (1 << 63) && rem10 != half_ulp && TEN.wrapping_sub(upper) > 1 {
+        if {
+            // Exact half-ulp tie when rounding to nearest integer.
+            fractional != (1 << 63) &&
+            // Exact half-ulp tie when rounding to nearest 10.
+            rem10 != half_ulp10 && TEN.wrapping_sub(upper) > 1
+        } {
             let round = (upper >> NUM_FRACTIONAL_BITS) >= 10;
             let shorter = integral - digit + u64::from(round) * 10;
             let longer = integral + u64::from(fractional >= (1 << 63));
             return unsafe {
                 write(
                     buffer,
-                    if half_ulp >= rem10 || round {
+                    if half_ulp10 >= rem10 || round {
                         shorter
                     } else {
                         longer
