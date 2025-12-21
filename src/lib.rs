@@ -24,6 +24,7 @@
     clippy::cast_sign_loss,
     clippy::items_after_statements,
     clippy::must_use_candidate,
+    clippy::redundant_else,
     clippy::too_many_lines,
     clippy::unreadable_literal
 )]
