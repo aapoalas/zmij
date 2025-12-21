@@ -859,7 +859,7 @@ fn to_decimal(bin_sig: u64, bin_exp: i32, regular: bool) -> fp {
         // Switch to a fixed-point representation with the integral part in the
         // upper 4 bits and the rest being the fractional part.
         const NUM_INTEGRAL_BITS: i32 = 4;
-        const NUM_FRACTIONAL_BITS: i32 = NUM_BITS.cast_signed() - NUM_INTEGRAL_BITS;
+        const NUM_FRACTIONAL_BITS: i32 = NUM_BITS as i32 - NUM_INTEGRAL_BITS;
         const TEN: u64 = 10 << NUM_FRACTIONAL_BITS;
         // Fixed-point remainder of the scaled significand modulo 10.
         let rem10 = (digit << NUM_FRACTIONAL_BITS) | (fractional >> NUM_INTEGRAL_BITS);
@@ -923,9 +923,7 @@ fn to_decimal(bin_sig: u64, bin_exp: i32, regular: bool) -> fp {
 
     // Pick the closest of dec_sig_under and dec_sig_over and check if it's in
     // the rounding interval.
-    let cmp = scaled_sig
-        .wrapping_sub((dec_sig_under + dec_sig_over) << 1)
-        .cast_signed();
+    let cmp = scaled_sig.wrapping_sub((dec_sig_under + dec_sig_over) << 1) as i64;
     let under_closer = cmp < 0 || (cmp == 0 && (dec_sig_under & 1) == 0);
     let under_in = (dec_sig_under << 2) >= lower;
     fp {
@@ -948,12 +946,12 @@ unsafe fn dtoa(value: f64, mut buffer: *mut u8) -> *mut u8 {
         buffer = buffer.add((bits >> (NUM_BITS - 1)) as usize);
     }
 
-    const NUM_SIG_BITS: i32 = f64::MANTISSA_DIGITS.cast_signed() - 1;
+    const NUM_SIG_BITS: i32 = f64::MANTISSA_DIGITS as i32 - 1;
     const IMPLICIT_BIT: u64 = 1u64 << NUM_SIG_BITS;
     let mut bin_sig = bits & (IMPLICIT_BIT - 1); // binary significand
     let mut regular = bin_sig != 0;
 
-    const NUM_EXP_BITS: i32 = NUM_BITS.cast_signed() - NUM_SIG_BITS - 1;
+    const NUM_EXP_BITS: i32 = NUM_BITS as i32 - NUM_SIG_BITS - 1;
     const EXP_MASK: i32 = (1 << NUM_EXP_BITS) - 1;
     const EXP_BIAS: i32 = (1 << (NUM_EXP_BITS - 1)) - 1;
     let mut bin_exp = (bits >> NUM_SIG_BITS) as i32 & EXP_MASK; // binary exponent
@@ -982,7 +980,7 @@ unsafe fn dtoa(value: f64, mut buffer: *mut u8) -> *mut u8 {
     dec_exp += 15 + i32::from(dec_sig >= const { 10u64.pow(16) });
 
     let end = unsafe { write_significand(buffer.add(1), dec_sig) };
-    let length = unsafe { end.offset_from_unsigned(buffer.add(1)) };
+    let length = unsafe { end.offset_from(buffer.add(1)) } as usize;
 
     if (-5..=15).contains(&dec_exp) {
         if length as i32 - 1 <= dec_exp {
@@ -1026,7 +1024,7 @@ unsafe fn dtoa(value: f64, mut buffer: *mut u8) -> *mut u8 {
     unsafe {
         buffer = buffer.add(usize::from(dec_exp >= 10));
     }
-    let (a, bb) = divmod100(dec_exp.cast_unsigned());
+    let (a, bb) = divmod100(dec_exp as u32);
     unsafe {
         *buffer = b'0' + a as u8;
         buffer = buffer.add(usize::from(dec_exp >= 100));
@@ -1058,7 +1056,7 @@ impl Buffer {
     pub fn format_finite(&mut self, f: f64) -> &str {
         unsafe {
             let end = dtoa(f, self.bytes.as_mut_ptr().cast::<u8>());
-            let len = end.offset_from_unsigned(self.bytes.as_ptr().cast::<u8>());
+            let len = end.offset_from(self.bytes.as_ptr().cast::<u8>()) as usize;
             let slice = slice::from_raw_parts(self.bytes.as_ptr().cast::<u8>(), len);
             str::from_utf8_unchecked(slice)
         }

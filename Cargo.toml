@@ -10,7 +10,7 @@ exclude = ["performance.png", "chart/**"]
 keywords = ["float"]
 license = "MIT"
 repository = "https://github.com/dtolnay/zmij"
-rust-version = "1.87"
+rust-version = "1.85"
 
 [dev-dependencies]
 opt-level = "1"
