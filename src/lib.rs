@@ -43,6 +43,7 @@
     clippy::doc_markdown,
     clippy::items_after_statements,
     clippy::must_use_candidate,
+    clippy::needless_doctest_main,
     clippy::redundant_else,
     clippy::too_many_lines,
     clippy::unreadable_literal
