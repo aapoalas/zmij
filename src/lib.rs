@@ -802,74 +802,15 @@ unsafe fn write_significand(mut buffer: *mut u8, value: u64) -> *mut u8 {
     }
 }
 
-// Writes the decimal FP number dec_sig * 10**dec_exp to buffer.
-unsafe fn write(mut buffer: *mut u8, dec_sig: u64, mut dec_exp: i32) -> *mut u8 {
-    dec_exp += 15 + i32::from(dec_sig >= const { 10u64.pow(16) });
+const NUM_BITS: u32 = mem::size_of::<f64>() as u32 * 8;
 
-    let start = buffer;
-    unsafe {
-        buffer = write_significand(buffer.add(1), dec_sig);
-        *start = *start.add(1);
-        *start.add(1) = b'.';
-    }
-
-    unsafe {
-        *buffer = b'e';
-        buffer = buffer.add(1);
-    }
-    let mut sign = b'+';
-    if dec_exp < 0 {
-        sign = b'-';
-        dec_exp = -dec_exp;
-    }
-    unsafe {
-        *buffer = sign;
-        buffer = buffer.add(1);
-    }
-    let (a, bb) = divmod100(dec_exp.cast_unsigned());
-    unsafe {
-        *buffer = b'0' + a as u8;
-        buffer = buffer.add(usize::from(dec_exp >= 100));
-        buffer.cast::<u16>().write_unaligned(*digits2(bb as usize));
-        buffer.add(2)
-    }
+#[allow(non_camel_case_types)]
+struct fp {
+    sig: u64,
+    exp: i32,
 }
 
-/// Writes the shortest correctly rounded decimal representation of `value` to
-/// `buffer`. `buffer` should point to a buffer of size `buffer_size` or larger.
-unsafe fn dtoa(value: f64, mut buffer: *mut u8) -> *mut u8 {
-    const NUM_BITS: u32 = mem::size_of::<f64>() as u32 * 8;
-    let bits = value.to_bits();
-
-    unsafe {
-        *buffer = b'-';
-        buffer = buffer.add((bits >> (NUM_BITS - 1)) as usize);
-    }
-
-    const NUM_SIG_BITS: i32 = f64::MANTISSA_DIGITS.cast_signed() - 1;
-    const IMPLICIT_BIT: u64 = 1u64 << NUM_SIG_BITS;
-    let mut bin_sig = bits & (IMPLICIT_BIT - 1); // binary significand
-    let mut regular = bin_sig != 0;
-
-    const NUM_EXP_BITS: i32 = NUM_BITS.cast_signed() - NUM_SIG_BITS - 1;
-    const EXP_MASK: i32 = (1 << NUM_EXP_BITS) - 1;
-    const EXP_BIAS: i32 = (1 << (NUM_EXP_BITS - 1)) - 1;
-    let mut bin_exp = (bits >> NUM_SIG_BITS) as i32 & EXP_MASK; // binary exponent
-    if bin_exp == 0 {
-        if bin_sig == 0 {
-            return unsafe {
-                *buffer = b'0';
-                buffer.add(1)
-            };
-        }
-        // Handle subnormals.
-        bin_sig |= IMPLICIT_BIT;
-        bin_exp = 1;
-        regular = true;
-    }
-    bin_sig ^= IMPLICIT_BIT;
-    bin_exp -= NUM_SIG_BITS + EXP_BIAS;
-
+fn to_decimal(bin_sig: u64, bin_exp: i32, regular: bool) -> fp {
     // Compute the decimal exponent as floor(log10(2**bin_exp)) if regular or
     // floor(log10(3/4 * 2**bin_exp)) otherwise, without branching.
     // log10_3_over_4_sig = round(log10(3/4) * 2**log10_2_exp)
@@ -932,16 +873,13 @@ unsafe fn dtoa(value: f64, mut buffer: *mut u8) -> *mut u8 {
             let round = (upper >> NUM_FRACTIONAL_BITS) >= 10;
             let shorter = integral - digit + u64::from(round) * 10;
             let longer = integral + u64::from(fractional >= (1 << 63));
-            return unsafe {
-                write(
-                    buffer,
-                    if rem10 <= half_ulp10 || round {
-                        shorter
-                    } else {
-                        longer
-                    },
-                    dec_exp,
-                )
+            return fp {
+                sig: if rem10 <= half_ulp10 || round {
+                    shorter
+                } else {
+                    longer
+                },
+                exp: dec_exp,
             };
         }
     }
@@ -964,7 +902,10 @@ unsafe fn dtoa(value: f64, mut buffer: *mut u8) -> *mut u8 {
     // It is less or equal to the upper bound by construction.
     let shorter = 10 * ((upper >> 2) / 10);
     if (shorter << 2) >= lower {
-        return unsafe { write(buffer, shorter, dec_exp) };
+        return fp {
+            sig: shorter,
+            exp: dec_exp,
+        };
     }
 
     let scaled_sig =
@@ -979,16 +920,82 @@ unsafe fn dtoa(value: f64, mut buffer: *mut u8) -> *mut u8 {
         .cast_signed();
     let under_closer = cmp < 0 || (cmp == 0 && (dec_sig_under & 1) == 0);
     let under_in = (dec_sig_under << 2) >= lower;
+    fp {
+        sig: if under_closer & under_in {
+            dec_sig_under
+        } else {
+            dec_sig_over
+        },
+        exp: dec_exp,
+    }
+}
+
+/// Writes the shortest correctly rounded decimal representation of `value` to
+/// `buffer`. `buffer` should point to a buffer of size `buffer_size` or larger.
+unsafe fn dtoa(value: f64, mut buffer: *mut u8) -> *mut u8 {
+    let bits = value.to_bits();
+
     unsafe {
-        write(
-            buffer,
-            if under_closer & under_in {
-                dec_sig_under
-            } else {
-                dec_sig_over
-            },
-            dec_exp,
-        )
+        *buffer = b'-';
+        buffer = buffer.add((bits >> (NUM_BITS - 1)) as usize);
+    }
+
+    const NUM_SIG_BITS: i32 = f64::MANTISSA_DIGITS.cast_signed() - 1;
+    const IMPLICIT_BIT: u64 = 1u64 << NUM_SIG_BITS;
+    let mut bin_sig = bits & (IMPLICIT_BIT - 1); // binary significand
+    let mut regular = bin_sig != 0;
+
+    const NUM_EXP_BITS: i32 = NUM_BITS.cast_signed() - NUM_SIG_BITS - 1;
+    const EXP_MASK: i32 = (1 << NUM_EXP_BITS) - 1;
+    const EXP_BIAS: i32 = (1 << (NUM_EXP_BITS - 1)) - 1;
+    let mut bin_exp = (bits >> NUM_SIG_BITS) as i32 & EXP_MASK; // binary exponent
+    if bin_exp == 0 {
+        if bin_sig == 0 {
+            return unsafe {
+                *buffer = b'0';
+                buffer.add(1)
+            };
+        }
+        // Handle subnormals.
+        bin_sig |= IMPLICIT_BIT;
+        bin_exp = 1;
+        regular = true;
+    }
+    bin_sig ^= IMPLICIT_BIT;
+    bin_exp -= NUM_SIG_BITS + EXP_BIAS;
+
+    let fp {
+        sig: dec_sig,
+        exp: mut dec_exp,
+    } = to_decimal(bin_sig, bin_exp, regular);
+    dec_exp += 15 + i32::from(dec_sig >= const { 10u64.pow(16) });
+
+    let start = buffer;
+    unsafe {
+        buffer = write_significand(buffer.add(1), dec_sig);
+        *start = *start.add(1);
+        *start.add(1) = b'.';
+    }
+
+    unsafe {
+        *buffer = b'e';
+        buffer = buffer.add(1);
+    }
+    let mut sign = b'+';
+    if dec_exp < 0 {
+        sign = b'-';
+        dec_exp = -dec_exp;
+    }
+    unsafe {
+        *buffer = sign;
+        buffer = buffer.add(1);
+    }
+    let (a, bb) = divmod100(dec_exp.cast_unsigned());
+    unsafe {
+        *buffer = b'0' + a as u8;
+        buffer = buffer.add(usize::from(dec_exp >= 100));
+        buffer.cast::<u16>().write_unaligned(*digits2(bb as usize));
+        buffer.add(2)
     }
 }
 
