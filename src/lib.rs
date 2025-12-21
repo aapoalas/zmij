@@ -981,15 +981,12 @@ unsafe fn dtoa(value: f64, mut buffer: *mut u8) -> *mut u8 {
         *buffer = b'e';
         buffer = buffer.add(1);
     }
-    let mut sign = b'+';
-    if dec_exp < 0 {
-        sign = b'-';
-        dec_exp = -dec_exp;
-    }
     unsafe {
-        *buffer = sign;
+        *buffer = b'+' + u8::from(dec_exp < 0) * (b'-' - b'+');
         buffer = buffer.add(1);
     }
+    let mask = dec_exp >> 31;
+    dec_exp = (dec_exp + mask) ^ mask; // absolute value
     let (a, bb) = divmod100(dec_exp.cast_unsigned());
     unsafe {
         *buffer = b'0' + a as u8;
