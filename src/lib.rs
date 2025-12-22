@@ -1054,8 +1054,8 @@ unsafe fn dtoa(value: f64, mut buffer: *mut u8) -> *mut u8 {
         buffer = buffer.add(1);
     }
     let sign_ptr = buffer;
-    let sign = b'+' + u8::from(dec_exp < 0) * (b'-' - b'+');
-    let mask = dec_exp >> 31;
+    let sign = b'-'.wrapping_add(u8::from(dec_exp >= 0) * b'+'.wrapping_sub(b'-'));
+    let mask = i32::from(dec_exp >= 0) - 1;
     dec_exp = (dec_exp + mask) ^ mask; // absolute value
     unsafe {
         buffer = buffer.add(usize::from(dec_exp >= 10));
