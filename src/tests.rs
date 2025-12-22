@@ -6,6 +6,7 @@ const _: () = {
     assert!(static_data == 10072); // 9.8K
 };
 
+#[cfg(target_endian = "little")]
 #[test]
 fn utilities() {
     let countl_zero = u64::leading_zeros;

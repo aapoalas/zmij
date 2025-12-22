@@ -729,11 +729,6 @@ fn divmod100(value: u32) -> (u32, u32) {
 
 #[cfg_attr(feature = "no-panic", no_panic)]
 fn count_trailing_nonzeros(x: u64) -> usize {
-    // This assumes little-endian, that is the first char of the string is in
-    // the lowest byte and the last char is in the highest byte.
-    #[cfg(target_endian = "big")]
-    compile_error!();
-
     // We count the number of bytes until there are only '\0's left.
     // The code is equivalent to
     //    8 - x.leading_zeros() / 8
@@ -746,7 +741,7 @@ fn count_trailing_nonzeros(x: u64) -> usize {
     // bit is never set we can avoid the zero check by shifting the datum left
     // by one and inserting a sentinel bit at the end. On my x64 this is a
     // measurable speed-up over the automatically inserted range check.
-    (70 - ((x << 1) | 1).leading_zeros()) as usize / 8
+    (70 - ((x.to_le() << 1) | 1).leading_zeros()) as usize / 8
 }
 
 // Align data since unaligned access may be slower when crossing a
