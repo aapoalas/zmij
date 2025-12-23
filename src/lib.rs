@@ -789,7 +789,7 @@ fn to_bcd8(abcdefgh: u64) -> u64 {
 // Writes a significand consisting of up to 17 decimal digits (16-17 for
 // normals) and removes trailing zeros.
 #[cfg_attr(feature = "no-panic", no_panic)]
-unsafe fn write_significand(mut buffer: *mut u8, value: u64) -> *mut u8 {
+unsafe fn write_significand17(mut buffer: *mut u8, value: u64) -> *mut u8 {
     // Each digits is denoted by a letter so value is abbccddeeffgghhii where
     // digit a can be zero.
     let abbccddee = (value / 100_000_000) as u32;
@@ -813,6 +813,29 @@ unsafe fn write_significand(mut buffer: *mut u8, value: u64) -> *mut u8 {
     }
     buffer = unsafe { buffer.add(8) };
     let bcd = to_bcd8(u64::from(ffgghhii));
+    let bits = bcd | ZEROBITS;
+    unsafe {
+        buffer.cast::<u64>().write_unaligned(bits);
+        buffer.add(count_trailing_nonzeros(bcd))
+    }
+}
+
+// Writes a significand consisting of up to 9 decimal digits (8-9 for normals)
+// and removes trailing zeros.
+#[cfg_attr(feature = "no-panic", no_panic)]
+unsafe fn write_significand9(mut buffer: *mut u8, value: u32) -> *mut u8 {
+    // Each digits is denoted by a letter so value is abbccddee.
+    let a = value / 100_000_000;
+    let bbccddee = value % 100_000_000;
+
+    //char* start = buffer;
+    unsafe {
+        *buffer = b'0' + a as u8;
+        buffer = buffer.add(usize::from(a != 0));
+    }
+
+    const ZEROBITS: u64 = 0x30303030_30303030; // 0x30 == '0'
+    let bcd = to_bcd8(u64::from(bbccddee));
     let bits = bcd | ZEROBITS;
     unsafe {
         buffer.cast::<u64>().write_unaligned(bits);
@@ -1005,7 +1028,7 @@ where
     if num_bits == 64 {
         let num_digits = 15 + usize::from(dec_sig >= 10_000_000_000_000_000);
         dec_exp += num_digits as i32;
-        end = unsafe { write_significand(buffer.add(1), dec_sig) };
+        end = unsafe { write_significand17(buffer.add(1), dec_sig) };
         if subnormal {
             unsafe {
                 let mut p = buffer.add(1);
@@ -1019,8 +1042,8 @@ where
             }
         }
     } else {
-        dec_exp += 15 + i32::from(dec_sig >= 100_000_000);
-        end = unsafe { write_significand(buffer.add(1), dec_sig) };
+        dec_exp += 7 + i32::from(dec_sig >= 100_000_000);
+        end = unsafe { write_significand9(buffer.add(1), dec_sig as u32) };
     }
 
     let length = unsafe { end.offset_from(buffer.add(1)) } as usize;
