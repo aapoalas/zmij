@@ -1163,7 +1163,7 @@ impl Buffer {
     #[cfg_attr(feature = "no-panic", no_panic)]
     pub fn format_finite<F: Float>(&mut self, f: F) -> &str {
         unsafe {
-            let end = to_string(f, self.bytes.as_mut_ptr().cast::<u8>());
+            let end = f.write_to_zmij_buffer(self.bytes.as_mut_ptr().cast::<u8>());
             let len = end.offset_from(self.bytes.as_ptr().cast::<u8>()) as usize;
             let slice = slice::from_raw_parts(self.bytes.as_ptr().cast::<u8>(), len);
             str::from_utf8_unchecked(slice)
@@ -1189,6 +1189,7 @@ mod private {
     pub trait Sealed: crate::traits::Float {
         fn is_nonfinite(self) -> bool;
         fn format_nonfinite(self) -> &'static str;
+        unsafe fn write_to_zmij_buffer(self, buffer: *mut u8) -> *mut u8;
     }
 
     #[cfg(__f32)]
@@ -1214,6 +1215,11 @@ mod private {
                 crate::INFINITY
             }
         }
+
+        #[cfg_attr(feature = "no-panic", inline)]
+        unsafe fn write_to_zmij_buffer(self, buffer: *mut u8) -> *mut u8 {
+            unsafe { crate::to_string(self, buffer) }
+        }
     }
 
     impl Sealed for f64 {
@@ -1237,6 +1243,11 @@ mod private {
             } else {
                 crate::INFINITY
             }
+        }
+
+        #[cfg_attr(feature = "no-panic", inline)]
+        unsafe fn write_to_zmij_buffer(self, buffer: *mut u8) -> *mut u8 {
+            unsafe { crate::to_string(self, buffer) }
         }
     }
 }
