@@ -33,7 +33,7 @@
 //! ![performance](https://raw.githubusercontent.com/dtolnay/zmij/master/performance.png)
 
 #![no_std]
-#![doc(html_root_url = "https://docs.rs/zmij/0.1.6")]
+#![doc(html_root_url = "https://docs.rs/zmij/0.1.7")]
 #![deny(unsafe_op_in_unsafe_fn)]
 #![allow(
     clippy::blocks_in_conditions,
