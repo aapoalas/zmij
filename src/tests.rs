@@ -9,10 +9,9 @@ const _: () = {
 #[cfg(target_endian = "little")]
 #[test]
 fn utilities() {
-    let countl_zero = u64::leading_zeros;
-    assert_eq!(countl_zero(0), 64);
-    assert_eq!(countl_zero(1), 63);
-    assert_eq!(countl_zero(!0), 0);
+    let clz = u64::leading_zeros;
+    assert_eq!(clz(1), 63);
+    assert_eq!(clz(!0), 0);
 
     assert_eq!(crate::count_trailing_nonzeros(0x00000000_00000000), 0);
     assert_eq!(crate::count_trailing_nonzeros(0x00000000_00000001), 1);
