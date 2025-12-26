@@ -915,8 +915,8 @@ where
 
     let num_bits = mem::size_of::<UInt>() as i32 * 8;
     if regular && !subnormal {
-        let integral;
-        let fractional;
+        let integral; // integral part of pow10 * bin_sig
+        let fractional; // fractional part of pow10 * bin_sig
         if num_bits == 64 {
             let result = umul192_upper128(pow10_hi, pow10_lo, (bin_sig << exp_shift).into());
             integral = UInt::truncate(result.hi);
