@@ -71,10 +71,11 @@ mod dtoa_test {
 
     #[test]
     fn all_exponents() {
-        for exp in f64::MIN_EXP..f64::MAX_EXP {
-            let expected = f64::exp2(f64::from(exp));
-            let actual = dtoa(expected).parse::<f64>().unwrap();
-            assert_eq!(actual, expected);
+        for exp in 0..=0x3ff {
+            let bits = (exp << 52) | 1;
+            let value = f64::from_bits(bits);
+
+            assert_eq!(dtoa(value), ryu::Buffer::new().format(value));
         }
     }
 }
