@@ -78,6 +78,13 @@ const NAN: &str = "NaN";
 const INFINITY: &str = "inf";
 const NEG_INFINITY: &str = "-inf";
 
+// A decimal floating-point number sig * pow(10, exp).
+#[allow(non_camel_case_types)]
+struct dec_fp {
+    sig: u64, // significand
+    exp: i32, // exponent
+}
+
 #[allow(non_camel_case_types)]
 struct uint128 {
     hi: u64,
@@ -1055,13 +1062,7 @@ const fn compute_exp_shift(bin_exp: i32, dec_exp: i32) -> i32 {
     bin_exp + pow10_bin_exp + 1
 }
 
-#[allow(non_camel_case_types)]
-struct fp {
-    sig: u64, // significand
-    exp: i32, // exponent
-}
-
-fn normalize<UInt>(mut dec: fp, subnormal: bool) -> fp
+fn normalize<UInt>(mut dec: dec_fp, subnormal: bool) -> dec_fp
 where
     UInt: traits::UInt,
 {
@@ -1085,7 +1086,7 @@ where
 // Converts a binary FP number bin_sig * 2**bin_exp to the shortest decimal
 // representation.
 #[cfg_attr(feature = "no-panic", no_panic)]
-fn to_decimal<UInt>(bin_sig: UInt, bin_exp: i32, regular: bool, subnormal: bool) -> fp
+fn to_decimal<UInt>(bin_sig: UInt, bin_exp: i32, regular: bool, subnormal: bool) -> dec_fp
 where
     UInt: traits::UInt,
 {
@@ -1139,7 +1140,7 @@ where
             let shorter = integral.into() - digit + u64::from(round_up) * 10;
             let longer = integral.into() + u64::from(fractional >= HALF_ULP);
             let use_shorter = scaled_sig_mod10 <= scaled_half_ulp || round_up;
-            return fp {
+            return dec_fp {
                 #[cfg(zmij_no_select_unpredictable)]
                 sig: if use_shorter { shorter } else { longer },
                 #[cfg(not(zmij_no_select_unpredictable))]
@@ -1174,7 +1175,7 @@ where
     let shorter = UInt::from(10) * ((upper >> BOUND_SHIFT) / UInt::from(10));
     if (shorter << BOUND_SHIFT) >= lower {
         return normalize::<UInt>(
-            fp {
+            dec_fp {
                 sig: shorter.into(),
                 exp: dec_exp,
             },
@@ -1200,7 +1201,7 @@ where
         dec_sig_above
     };
     normalize::<UInt>(
-        fp {
+        dec_fp {
             sig: dec_sig.into(),
             exp: dec_exp,
         },
@@ -1236,18 +1237,17 @@ where
             };
         }
         // Handle subnormals.
-        // Setting regular is not redundant: it avoids extra data dependencies
-        // and register pressure on the hot path (measurable perf impact).
-        regular = true;
         bin_sig |= Float::IMPLICIT_BIT;
         bin_exp = 1;
         subnormal = true;
+        // Setting regular is not redundant: it has a measurable perf impact.
+        regular = true;
     }
     bin_sig ^= Float::IMPLICIT_BIT;
     bin_exp -= Float::NUM_SIG_BITS + Float::EXP_BIAS;
 
     // Here be 🐉s.
-    let fp {
+    let dec_fp {
         sig: mut dec_sig,
         exp: mut dec_exp,
     } = to_decimal(bin_sig, bin_exp, regular, subnormal);
