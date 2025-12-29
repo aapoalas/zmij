@@ -987,33 +987,6 @@ unsafe fn write_significand9(mut buffer: *mut u8, value: u32) -> *mut u8 {
     }
 }
 
-#[allow(non_camel_case_types)]
-struct fp {
-    sig: u64,
-    exp: i32,
-}
-
-fn normalize<UInt>(mut dec: fp, subnormal: bool) -> fp
-where
-    UInt: traits::UInt,
-{
-    if !subnormal {
-        return dec;
-    }
-    let num_bits = mem::size_of::<UInt>() * 8;
-    while dec.sig
-        < if num_bits == 64 {
-            10_000_000_000_000_000
-        } else {
-            100_000_000
-        }
-    {
-        dec.sig *= 10;
-        dec.exp -= 1;
-    }
-    dec
-}
-
 // Computes the decimal exponent as floor(log10(2**bin_exp)) if regular or
 // floor(log10(3/4 * 2**bin_exp)) otherwise, without branching.
 const fn compute_dec_exp(bin_exp: i32, regular: bool) -> i32 {
@@ -1052,6 +1025,33 @@ const fn compute_exp_shift(bin_exp: i32, dec_exp: i32) -> i32 {
     //   3 * 2**59 / 100 = 1.72...e+16 (exp_shift = 1 + 1)
     //   3 * 2**60 / 100 = 3.45...e+16 (exp_shift = 2 + 1)
     bin_exp + pow10_bin_exp + 1
+}
+
+#[allow(non_camel_case_types)]
+struct fp {
+    sig: u64,
+    exp: i32,
+}
+
+fn normalize<UInt>(mut dec: fp, subnormal: bool) -> fp
+where
+    UInt: traits::UInt,
+{
+    if !subnormal {
+        return dec;
+    }
+    let num_bits = mem::size_of::<UInt>() * 8;
+    while dec.sig
+        < if num_bits == 64 {
+            10_000_000_000_000_000
+        } else {
+            100_000_000
+        }
+    {
+        dec.sig *= 10;
+        dec.exp -= 1;
+    }
+    dec
 }
 
 // Converts a binary FP number bin_sig * 2**bin_exp to the shortest decimal
