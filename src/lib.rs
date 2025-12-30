@@ -1097,13 +1097,13 @@ fn to_decimal<UInt>(bin_sig: UInt, bin_exp: i32, regular: bool, subnormal: bool)
 where
     UInt: traits::UInt,
 {
-    let dec_exp = compute_dec_exp(bin_exp, regular);
-    let exp_shift = compute_exp_shift(bin_exp, dec_exp);
-    let (mut pow10_hi, mut pow10_lo) =
-        *unsafe { POW10_SIGNIFICANDS.get_unchecked((-dec_exp - DEC_EXP_MIN) as usize) };
-
     let num_bits = mem::size_of::<UInt>() as i32 * 8;
     if regular && !subnormal {
+        let dec_exp = compute_dec_exp(bin_exp, true);
+        let exp_shift = compute_exp_shift(bin_exp, dec_exp);
+        let (pow10_hi, pow10_lo) =
+            *unsafe { POW10_SIGNIFICANDS.get_unchecked((-dec_exp - DEC_EXP_MIN) as usize) };
+
         let integral; // integral part of bin_sig * pow10
         let fractional; // fractional part of bin_sig * pow10
         if num_bits == 64 {
@@ -1169,6 +1169,11 @@ where
             };
         }
     }
+
+    let dec_exp = compute_dec_exp(bin_exp, regular);
+    let exp_shift = compute_exp_shift(bin_exp, dec_exp);
+    let (mut pow10_hi, mut pow10_lo) =
+        *unsafe { POW10_SIGNIFICANDS.get_unchecked((-dec_exp - DEC_EXP_MIN) as usize) };
 
     // Fallback to Schubfach to guarantee correctness in boundary cases and
     // switch to strict overestimates of powers of 10.
