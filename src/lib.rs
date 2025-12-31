@@ -295,7 +295,7 @@ unsafe fn write8(buffer: *mut u8, value: u64) {
     }
 }
 
-const ZEROS: u64 = 0x30303030_30303030; // 0x30 == '0'
+const ZEROS: u64 = 0x0101010101010101 * b'0' as u64;
 
 // Writes a significand consisting of up to 17 decimal digits (16-17 for
 // normals) and removes trailing zeros.
