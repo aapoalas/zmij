@@ -43,6 +43,7 @@
 #![no_std]
 #![doc(html_root_url = "https://docs.rs/zmij/1.0.5")]
 #![deny(unsafe_op_in_unsafe_fn)]
+#![allow(non_camel_case_types)]
 #![allow(
     clippy::blocks_in_conditions,
     clippy::cast_possible_truncation,
@@ -80,13 +81,11 @@ const NEG_INFINITY: &str = "-inf";
 
 // A decimal floating-point number sig * pow(10, exp).
 // If exp is non_finite_exp then the number is a NaN or an infinity.
-#[allow(non_camel_case_types)]
 struct dec_fp {
     sig: i64, // significand
     exp: i32, // exponent
 }
 
-#[allow(non_camel_case_types)]
 struct uint128 {
     hi: u64,
     lo: u64,
