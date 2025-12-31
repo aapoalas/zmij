@@ -68,6 +68,8 @@ mod traits;
 #[cfg(not(zmij_no_select_unpredictable))]
 use core::hint;
 use core::mem::{self, MaybeUninit};
+#[cfg(test)]
+use core::ops::Index;
 use core::ptr;
 use core::slice;
 use core::str;
@@ -170,9 +172,27 @@ impl FloatTraits for f64 {
     }
 }
 
+struct Pow10SignificandsTable([(u64, u64); 617]);
+
+impl Pow10SignificandsTable {
+    unsafe fn get_unchecked(&self, dec_exp: i32) -> &(u64, u64) {
+        const DEC_EXP_MIN: i32 = -292;
+        unsafe { self.0.get_unchecked((dec_exp - DEC_EXP_MIN) as usize) }
+    }
+}
+
+#[cfg(test)]
+impl Index<i32> for Pow10SignificandsTable {
+    type Output = (u64, u64);
+    fn index(&self, dec_exp: i32) -> &Self::Output {
+        const DEC_EXP_MIN: i32 = -292;
+        &self.0[(dec_exp - DEC_EXP_MIN) as usize]
+    }
+}
+
 // 128-bit significands of powers of 10 rounded down.
 // Generated using 192-bit arithmetic method by Dougall Johnson.
-static POW10_SIGNIFICANDS: [(u64, u64); 617] = {
+static POW10_SIGNIFICANDS: Pow10SignificandsTable = {
     let mut data = [(0, 0); 617];
 
     struct uint192 {
@@ -218,10 +238,8 @@ static POW10_SIGNIFICANDS: [(u64, u64); 617] = {
         i += 1;
     }
 
-    data
+    Pow10SignificandsTable(data)
 };
-
-const DEC_EXP_MIN: i32 = -292;
 
 #[cfg_attr(feature = "no-panic", no_panic)]
 fn count_trailing_nonzeros(x: u64) -> usize {
@@ -537,8 +555,7 @@ where
     let num_bits = mem::size_of::<UInt>() as i32 * 8;
     if regular && !subnormal {
         let exp_shift = compute_exp_shift(bin_exp, dec_exp);
-        let (pow10_hi, pow10_lo) =
-            *unsafe { POW10_SIGNIFICANDS.get_unchecked((-dec_exp - DEC_EXP_MIN) as usize) };
+        let (pow10_hi, pow10_lo) = *unsafe { POW10_SIGNIFICANDS.get_unchecked(-dec_exp) };
 
         let integral; // integral part of bin_sig * pow10
         let fractional; // fractional part of bin_sig * pow10
@@ -608,8 +625,7 @@ where
 
     dec_exp = compute_dec_exp(bin_exp, regular);
     let exp_shift = compute_exp_shift(bin_exp, dec_exp);
-    let (mut pow10_hi, mut pow10_lo) =
-        *unsafe { POW10_SIGNIFICANDS.get_unchecked((-dec_exp - DEC_EXP_MIN) as usize) };
+    let (mut pow10_hi, mut pow10_lo) = *unsafe { POW10_SIGNIFICANDS.get_unchecked(-dec_exp) };
 
     // Fallback to Schubfach to guarantee correctness in boundary cases. This
     // requires switching to strict overestimates of powers of 10.

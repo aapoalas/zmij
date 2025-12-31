@@ -25,7 +25,7 @@ fn utilities() {
 
 #[test]
 fn umul_upper_inexact_to_odd() {
-    let (hi, lo) = crate::POW10_SIGNIFICANDS[0];
+    let (hi, lo) = crate::POW10_SIGNIFICANDS[-292];
     assert_eq!(
         crate::umul_upper_inexact_to_odd(hi, lo, 0x1234567890abcdefu64 << 1),
         0x24554a3ce60a45f5,
@@ -38,6 +38,8 @@ fn umul_upper_inexact_to_odd() {
 
 #[test]
 fn pow10() {
+    const DEC_EXP_MIN: i32 = -292;
+
     // Range of decimal exponents [K_min, K_max] from the paper.
     let dec_exp_min = -324_i32;
     let dec_exp_max = 292_i32;
@@ -59,6 +61,6 @@ fn pow10() {
         };
         let hi = u64::try_from(&result >> 64).unwrap();
         let lo = u64::try_from(result & (Uint::from(2_u8).pow(64) - Uint::from(1_u8))).unwrap();
-        assert_eq!((hi, lo), crate::POW10_SIGNIFICANDS[i]);
+        assert_eq!(crate::POW10_SIGNIFICANDS[DEC_EXP_MIN + i as i32], (hi, lo));
     }
 }
