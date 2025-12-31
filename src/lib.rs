@@ -1093,13 +1093,18 @@ where
 // Converts a binary FP number bin_sig * 2**bin_exp to the shortest decimal
 // representation.
 #[cfg_attr(feature = "no-panic", no_panic)]
-fn to_decimal<UInt>(bin_sig: UInt, bin_exp: i32, regular: bool, subnormal: bool) -> dec_fp
+fn to_decimal<UInt>(
+    bin_sig: UInt,
+    bin_exp: i32,
+    mut dec_exp: i32,
+    regular: bool,
+    subnormal: bool,
+) -> dec_fp
 where
     UInt: traits::UInt,
 {
     let num_bits = mem::size_of::<UInt>() as i32 * 8;
     if regular && !subnormal {
-        let dec_exp = compute_dec_exp(bin_exp, true);
         let exp_shift = compute_exp_shift(bin_exp, dec_exp);
         let (pow10_hi, pow10_lo) =
             *unsafe { POW10_SIGNIFICANDS.get_unchecked((-dec_exp - DEC_EXP_MIN) as usize) };
@@ -1170,7 +1175,7 @@ where
         }
     }
 
-    let dec_exp = compute_dec_exp(bin_exp, regular);
+    dec_exp = compute_dec_exp(bin_exp, regular);
     let exp_shift = compute_exp_shift(bin_exp, dec_exp);
     let (mut pow10_hi, mut pow10_lo) =
         *unsafe { POW10_SIGNIFICANDS.get_unchecked((-dec_exp - DEC_EXP_MIN) as usize) };
@@ -1242,6 +1247,9 @@ where
     Float: FloatTraits,
 {
     let bits = value.to_bits();
+    let raw_exp = Float::get_exp(bits); // binary exponent
+    let mut bin_exp = raw_exp - Float::NUM_SIG_BITS - Float::EXP_BIAS;
+    let mut dec_exp = compute_dec_exp(bin_exp, true);
 
     unsafe {
         *buffer = b'-';
@@ -1249,10 +1257,9 @@ where
     }
 
     let mut bin_sig = Float::get_sig(bits); // binary significand
-    let mut bin_exp = Float::get_exp(bits); // binary exponent
     let mut regular = bin_sig != Float::SigType::from(0);
     let mut subnormal = false;
-    if bin_exp == 0 {
+    if raw_exp == 0 {
         if bin_sig == Float::SigType::from(0) {
             return unsafe {
                 *buffer = b'0';
@@ -1262,20 +1269,19 @@ where
             };
         }
         // Handle subnormals.
+        bin_exp = 1 - Float::NUM_SIG_BITS - Float::EXP_BIAS;
+        dec_exp = compute_dec_exp(bin_exp, true);
         bin_sig |= Float::IMPLICIT_BIT;
-        bin_exp = 1;
         subnormal = true;
         // Setting regular is not redundant: it has a measurable perf impact.
         regular = true;
     }
     bin_sig ^= Float::IMPLICIT_BIT;
-    bin_exp -= Float::NUM_SIG_BITS + Float::EXP_BIAS;
 
     // Here be 🐉s.
-    let dec_fp {
-        sig: mut dec_sig,
-        exp: mut dec_exp,
-    } = to_decimal(bin_sig, bin_exp, regular, subnormal);
+    let dec = to_decimal(bin_sig, bin_exp, dec_exp, regular, subnormal);
+    dec_exp = dec.exp;
+    let mut dec_sig = dec.sig;
 
     // Write significand.
     let num_digits = Float::MAX_DIGITS10 as i32 - 2;
