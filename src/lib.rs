@@ -48,6 +48,7 @@
     clippy::blocks_in_conditions,
     clippy::cast_possible_truncation,
     clippy::cast_possible_wrap,
+    clippy::cast_ptr_alignment,
     clippy::cast_sign_loss,
     clippy::doc_markdown,
     clippy::incompatible_msrv,
