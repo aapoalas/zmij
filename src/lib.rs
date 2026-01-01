@@ -707,8 +707,8 @@ where
 
     let mut bin_sig = Float::get_sig(bits); // binary significand
     let mut regular = bin_sig != Float::SigType::from(0);
-    let mut subnormal = false;
-    if raw_exp == 0 {
+    let subnormal = raw_exp == 0;
+    if subnormal {
         if bin_sig == Float::SigType::from(0) {
             return unsafe {
                 *buffer = b'0';
@@ -717,11 +717,9 @@ where
                 buffer.add(3)
             };
         }
-        // Handle subnormals.
         bin_exp = 1 - Float::NUM_SIG_BITS - Float::EXP_BIAS;
         dec_exp = compute_dec_exp(bin_exp, true);
         bin_sig |= Float::IMPLICIT_BIT;
-        subnormal = true;
         // Setting regular is not redundant: it has a measurable perf impact.
         regular = true;
     }
